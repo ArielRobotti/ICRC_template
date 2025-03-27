@@ -14,11 +14,12 @@ import ICRC1 "mo:icrc1-mo/ICRC1";
 import ICRC2 "mo:icrc2-mo/ICRC2";
 import Types "types"
 
-shared ({ caller = _owner }) actor class Token(
-    icrc1_init_args : ICRC1.InitArgs,
-    icrc2_init_args : ICRC2.InitArgs,
-    initial_distribution : ?Types.InitialDsitribution,
-) = this {
+shared ({ caller = _owner }) actor class Token({
+    icrc1_init_args : ICRC1.InitArgs;
+    icrc2_init_args : ICRC2.InitArgs;
+    initial_distribution : ?Types.InitialDsitribution;
+    fee_distribution_percentages: [{name: Text; account: Types.Account; percent: Nat}]; //Multiplicar por 100. Ej: para expresar un 2.25 por ciento poner 225
+}) = this {
 
     /// Functions for the ICRC1 token standard
     public shared query func icrc1_name() : async Text {
@@ -108,10 +109,10 @@ shared ({ caller = _owner }) actor class Token(
   */
 
     public shared ({ caller }) func icrc2_approve(args : ICRC2.ApproveArgs) : async ICRC2.ApproveResponse {
-        
+
         switch (validate_transaction({ args with from = caller })) {
-            case (#Ok) { 
-                await* icrc2().approve(caller, args) 
+            case (#Ok) {
+                await* icrc2().approve(caller, args);
             };
             case (#Err(err)) {
                 switch (err) {
