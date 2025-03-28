@@ -9,16 +9,18 @@ import { now } "mo:base/Time";
 import Nat64 "mo:base/Nat64";
 import Int "mo:base/Int";
 import Array "mo:base/Array";
+import Nat "mo:base/Nat";
 
 import ICRC1 "mo:icrc1-mo/ICRC1";
 import ICRC2 "mo:icrc2-mo/ICRC2";
-import Types "types"
+import Types "types";
+import { print } "mo:base/Debug";
 
 shared ({ caller = _owner }) actor class Token({
     icrc1_init_args : ICRC1.InitArgs;
     icrc2_init_args : ICRC2.InitArgs;
-    initial_distribution : ?Types.InitialDsitribution;
-    fee_distribution_percentages: [{name: Text; account: Types.Account; percent: Nat}]; //Multiplicar por 100. Ej: para expresar un 2.25 por ciento poner 225
+    initial_distribution : [Types.HolderCategory];
+    fee_distribution_percentages: {toBurn : Nat; pooles: [Types.FeeAllocationPercentages]}; //Multiplicar por 100. Ej: para expresar un 2.25 por ciento poner 225
 }) = this {
 
     /// Functions for the ICRC1 token standard
@@ -35,7 +37,7 @@ shared ({ caller = _owner }) actor class Token({
     };
 
     public shared query func icrc1_fee() : async ICRC1.Balance {
-        icrc1().fee();
+        icrc1().fee() + fee_distribution_percentages.toBurn;    
     };
 
     public shared query func icrc1_metadata() : async [ICRC1.MetaDatum] {
@@ -60,7 +62,17 @@ shared ({ caller = _owner }) actor class Token({
 
     public shared ({ caller }) func icrc1_transfer(args : ICRC1.TransferArgs) : async ICRC1.TransferResult {
         switch (validate_transaction({ args with from = caller })) {
-            case (#Ok) { await* icrc1().transfer(caller, args) };
+            case (#Ok) {
+                let trxResult = await* icrc1().transfer(caller, args);
+                switch trxResult {
+                    case (#Ok(_)) {
+                        print(debug_show (await* icrc1().burn( caller, {args with  amount = fee_distribution_percentages.toBurn })));
+                    };
+                    case _ {}
+                };
+                trxResult
+                
+            };
             case (#Err(err)) { #Err(err) };
         };
     };
@@ -77,36 +89,6 @@ shared ({ caller = _owner }) actor class Token({
     public query ({ caller }) func icrc2_allowance(args : ICRC2.AllowanceArgs) : async ICRC2.Allowance {
         return icrc2().allowance(args.spender, args.account, false);
     };
-
-    /*
-    public type TransferError = TimeError or {
-        #BadFee : { expected_fee : Balance };
-        #BadBurn : { min_burn_amount : Balance };
-        #InsufficientFunds : { balance : Balance };
-        #Duplicate : { duplicate_of : TxIndex };
-        #TemporarilyUnavailable;
-        #GenericError : { error_code : Nat; message : Text };
-    };
-
-     public type ApproveError = {
-        /// Returned when the fee provided is less than expected.
-        #BadFee :  { expected_fee : Nat };
-        /// Returned when there are not enough funds to pay the fee.
-        #InsufficientFunds :  { balance : Nat };
-        /// Returned when the current allowance does not match the expected amount.
-        #AllowanceChanged :  { current_allowance : Nat };
-        /// Returned when an approval request has already expired.
-        #Expired :  { ledger_time : Nat64; };
-        #TooOld;
-        /// Returned when an approval is deemed to be created in the future.
-        #CreatedInFuture:  { ledger_time : Nat64 };
-        /// Returned when the request is duplicate of an earlier one.
-        #Duplicate :  { duplicate_of : Nat };
-        #TemporarilyUnavailable;
-        /// Generic error with a code and message.
-        #GenericError :  { error_code : Nat; message : Text };
-    };
-  */
 
     public shared ({ caller }) func icrc2_approve(args : ICRC2.ApproveArgs) : async ICRC2.ApproveResponse {
 
@@ -137,7 +119,21 @@ shared ({ caller = _owner }) actor class Token({
             amount = args.amount;
         });
         switch check_transaction {
-            case (#Ok) { await* icrc2().transfer_from(caller, args) };
+            case (#Ok) {
+                let trxResult = await* icrc2().transfer_from(caller, args);
+                switch trxResult {
+                    case (#Ok(_)){
+                        ignore await* icrc1().burn( 
+                            args.from.owner, 
+                            {   args with  
+                                amount = fee_distribution_percentages.toBurn;
+                                from_subaccount = args.from.subaccount
+                            });    
+                    };
+                    case (_) {}
+                };
+                trxResult
+            };
             case (#Err(err)) { #Err(err) };
         };
     };
@@ -154,21 +150,22 @@ shared ({ caller = _owner }) actor class Token({
     public shared ({ caller }) func distribution_info() : async ?DistributionInfo {
         if (not distribution_is_started and caller == _owner) {
             await _distribution();
-            return getDistributionStatus();
         };
         getDistributionStatus();
     };
 
-    // Initialization token state
+    /////////////////// Initialization token state //////////////////////////////////
 
     let icrc1_args : ICRC1.InitArgs = {
-        icrc1_init_args with minting_account = switch (
-            icrc1_init_args.minting_account
-        ) {
+        icrc1_init_args with minting_account = switch ( icrc1_init_args.minting_account ) {
             case (?val) ?val;
             case (null) {
                 ?{ owner = _owner; subaccount = null };
             };
+        };
+        fee = switch (icrc1_init_args.fee){
+            case ( ? #Fixed(_fee) ) { ? #Fixed(_fee: Nat - fee_distribution_percentages.toBurn: Nat)};
+            case ( _ ) {  ? #Fixed(10_000: Nat - fee_distribution_percentages.toBurn: Nat) }
         };
     };
 
@@ -251,30 +248,27 @@ shared ({ caller = _owner }) actor class Token({
         if (distribution_is_started) { return }; // Es redundante si solo se llama desde la funcion publica distribution_info
         distribution_is_started := true;
 
-        switch initial_distribution {
-            case null { return };
-            case (?dist) {
-                for (category in dist.categories.vals()) {
-                    for (holder in category.holders.vals()) {
-                        let mint_args : ICRC1.Mint = {
-                            to = holder;
-                            created_at_time = ?Nat64.fromNat(Int.abs(now()));
+        if (initial_distribution.size() == 0 ) {return };
+
+        for (category in initial_distribution.vals()) {
+            for (holder in category.holders.vals()) {
+                let mint_args : ICRC1.Mint = {
+                    to = holder;
+                    created_at_time = ?Nat64.fromNat(Int.abs(now()));
+                    amount = category.allocatedAmount;
+                    memo = null;
+                };
+                let _mint_result = await* icrc1().mint(icrc1().minting_account().owner, mint_args);
+                switch _mint_result {
+                    case (#Err(_)) {};
+                    case (#Ok(_)) {
+                        distributedAmount += category.allocatedAmount;
+                        let unlock_date = now() + category.blockingDays * 5 * 1_000_000_000; // 24 * 60 * 60 * 1_000_000_000 // Nanosegundos por dia
+                        let locked_ammount : LockedAmount = {
+                            unlockDate = unlock_date;
                             amount = category.allocatedAmount;
-                            memo = null;
                         };
-                        let _mint_result = await* icrc1().mint(icrc1().minting_account().owner, mint_args);
-                        switch _mint_result {
-                            case (#Err(_)) {};
-                            case (#Ok(_)) {
-                                distributedAmount += category.allocatedAmount;
-                                let unlock_date = now() + category.blockingDays * 24 * 60 * 60 * 1_000_000_000; // 24 * 60 * 60 * 1_000_000_000 Nanosegundos por dia
-                                let locked_ammount : LockedAmount = {
-                                    unlockDate = unlock_date;
-                                    amount = category.allocatedAmount;
-                                };
-                                ignore Map.put<Types.Account, LockedAmount>(holders_unlock_dates, ICRC1.ahash, holder, locked_ammount);
-                            };
-                        };
+                        ignore Map.put<Types.Account, LockedAmount>(holders_unlock_dates, ICRC1.ahash, holder, locked_ammount);
                     };
                 };
             };
@@ -316,11 +310,7 @@ shared ({ caller = _owner }) actor class Token({
 
     };
 
-    func validate_transaction({
-        from : Principal;
-        amount : Nat;
-        from_subaccount : ?Blob;
-    }) : { #Ok; #Err : ICRC1.TransferError } {
+    func validate_transaction({ from: Principal; amount: Nat; from_subaccount: ?Blob }): { #Ok; #Err: ICRC1.TransferError } {
         let currentTime = now();
         let fromAccount = { owner = from; subaccount = from_subaccount };
 
@@ -344,9 +334,5 @@ shared ({ caller = _owner }) actor class Token({
             };
         };
     };
-
-    // func transfer_with_validation(caller: Principal, args : ICRC1.TransferArgs): async ICRC1.TransferResult {
-
-    // };
 
 };

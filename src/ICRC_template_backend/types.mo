@@ -13,10 +13,6 @@ module {
         blockingDays: Nat   // Periodo de bloqueo luego de la distribución inicial
     };
 
-    public type InitialDsitribution = {
-        categories: [HolderCategory];    
-    };
-
     public type FeeAllocationPercentages = {
         name: Text;
         account: Account;
@@ -26,7 +22,7 @@ module {
     public func checkFeeAllocationPercentages(allocationsFee: [FeeAllocationPercentages]): Bool {
         var accumulator = 0;
         for(a in allocationsFee.vals()) {
-            accumulator += a.percent;
+            accumulator += (a.percent);
         };
         return accumulator <= 100 * 100
     };
