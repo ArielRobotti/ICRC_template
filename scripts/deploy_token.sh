@@ -5,7 +5,9 @@ echo -n "data:$(file --mime-type -b logo.svg);base64," > logo.txt && base64 -w 0
 // con un valor menor o igual al valor en tokens correspondiente a ese porcentage para un Fee
 // Ejemplo si el fee es de 10_000 y el porcentage de ese fee asignado a la quema es de 12.5% (1250) el valor de min_burn_amount tiene que ser
 // menor a 1250. De lo contrario falla la quema y el porcentaje correspondiente queda en posecion del usuario
-Ejemplo de envio de parametros de deploy
+
+// Ejemplo de envio de parametros de deploy
+
 dfx deploy ICRC_template_backend --argument '(
   record {
     initial_distribution = vec {
