@@ -39,9 +39,8 @@ La distribucion inicial esta definida por una lista de categorias con los siguie
 
 Bajo este esquema el suministro inicial se calcula a como
 
-\[
-\sum_{i=0}^{n} (\text{allocatedAmount}_i \times \text{holders.size()}_i)
-\]
+
+![alt text](image.png)
 
 
 ## 🛑 Reglas Críticas a considerar antes del deploy
@@ -88,8 +87,6 @@ Hay tres parametros que determinan una quena exitosa del porcentage de fee desti
 + fee
 
 La relación que debe existir es la siguiente:
-$$
-\text{min\_burn\_amount} \leq \frac{\text{toBurn} \times \text{fee}}{10,000}
-$$
 
+![alt text](image-1.png)
 Es decir, la cantidad de tokens que se van a quemar en una transaccion tiene que ser mayor o igual a min_burn_amount, de lo contrario no se queman y quedan en posecion del usuario que inicio la transacción
