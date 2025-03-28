@@ -89,4 +89,5 @@ Hay tres parametros que determinan una quena exitosa del porcentage de fee desti
 La relación que debe existir es la siguiente:
 
 ![alt text](image-1.png)
+
 Es decir, la cantidad de tokens que se van a quemar en una transaccion tiene que ser mayor o igual a min_burn_amount, de lo contrario no se queman y quedan en posecion del usuario que inicio la transacción
