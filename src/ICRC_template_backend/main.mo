@@ -263,7 +263,7 @@ shared ({ caller = _owner }) actor class Token({
                     case (#Err(_)) {};
                     case (#Ok(_)) {
                         distributedAmount += category.allocatedAmount;
-                        let unlock_date = now() + category.blockingDays * 24 * 60 * 60 * 1_000_000_000 //5 * 1_000_000_000; //  Nanosegundos por dia
+                        let unlock_date = now() + category.blockingDays * 24 * 60 * 60 * 1_000_000_000; //5 * 1_000_000_000; //  Nanosegundos por dia
                         let locked_ammount : LockedAmount = {
                             unlockDate = unlock_date;
                             amount = category.allocatedAmount;
