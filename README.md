@@ -3,8 +3,8 @@
 <details>
 <summary>🌍 Seleccionar idioma</summary>
 
-- [English](README.en.md)
-- [Español](README.es.md)
+- [English](README/README.en.md)
+- [Español](README/README.es.md)
 
 
 </details>
