@@ -30,6 +30,10 @@ dist/
 
 canister_ids.json
 
+# mainnet deploy ids
+
+canister_ids.json
+
 # Deploy private info
 
 deploy_token_private.sh
