@@ -25,3 +25,7 @@ dist/
 .env
 
 .mops
+
+# mainnet deploy ids
+
+canister_ids.json

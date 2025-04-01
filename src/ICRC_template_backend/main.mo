@@ -164,7 +164,7 @@ shared ({ caller = _owner }) actor class Token({
             };
         };
         fee = switch (icrc1_init_args.fee){
-            case ( ? #Fixed(_fee) ) { ? #Fixed(_fee: Nat - fee_distribution_percentages.toBurn: Nat)};
+            case ( ? #Fixed(_fee) ) { ? #Fixed(_fee: Nat - (fee_distribution_percentages.toBurn * _fee) /10000: Nat)};
             case ( _ ) {  ? #Fixed(10_000: Nat - fee_distribution_percentages.toBurn: Nat) }
         };
     };
