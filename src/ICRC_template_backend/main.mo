@@ -158,7 +158,7 @@ shared ({ caller = _owner }) actor class Token({
 
     let feeToBurnPerTransaction = switch (icrc1_init_args.fee) { 
         case (?#Fixed(fee) ) { Nat.min((fee_distribution_percentages.toBurn * fee) / 10000, 10000) };
-        case _ { fee_distribution_percentages.toBurn };
+        case _ { Nat.min(fee_distribution_percentages.toBurn, 10000) };
     };
 
     let icrc1_args : ICRC1.InitArgs = {
