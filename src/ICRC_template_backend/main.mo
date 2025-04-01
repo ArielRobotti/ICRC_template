@@ -37,7 +37,7 @@ shared ({ caller = _owner }) actor class Token({
     };
 
     public shared query func icrc1_fee() : async ICRC1.Balance {
-        icrc1().fee() + fee_distribution_percentages.toBurn;    
+        icrc1().fee() + feeToBurnPerTransaction;    
     };
 
     public shared query func icrc1_metadata() : async [ICRC1.MetaDatum] {
@@ -66,7 +66,7 @@ shared ({ caller = _owner }) actor class Token({
                 let trxResult = await* icrc1().transfer(caller, args);
                 switch trxResult {
                     case (#Ok(_)) {
-                        print(debug_show (await* icrc1().burn( caller, {args with  amount = fee_distribution_percentages.toBurn })));
+                        print(debug_show (await* icrc1().burn( caller, {args with  amount = feeToBurnPerTransaction })));
                     };
                     case _ {}
                 };
@@ -126,7 +126,7 @@ shared ({ caller = _owner }) actor class Token({
                         ignore await* icrc1().burn( 
                             args.from.owner, 
                             {   args with  
-                                amount = fee_distribution_percentages.toBurn;
+                                amount = feeToBurnPerTransaction;
                                 from_subaccount = args.from.subaccount
                             });    
                     };
@@ -156,6 +156,11 @@ shared ({ caller = _owner }) actor class Token({
 
     /////////////////// Initialization token state //////////////////////////////////
 
+    let feeToBurnPerTransaction = switch (icrc1_init_args.fee) { 
+        case (?#Fixed(fee) ) { Nat.min((fee_distribution_percentages.toBurn * fee) / 10000, 10000) };
+        case _ { fee_distribution_percentages.toBurn };
+    };
+
     let icrc1_args : ICRC1.InitArgs = {
         icrc1_init_args with minting_account = switch ( icrc1_init_args.minting_account ) {
             case (?val) ?val;
@@ -164,8 +169,8 @@ shared ({ caller = _owner }) actor class Token({
             };
         };
         fee = switch (icrc1_init_args.fee){
-            case ( ? #Fixed(_fee) ) { ? #Fixed(_fee: Nat - fee_distribution_percentages.toBurn: Nat)};
-            case ( _ ) {  ? #Fixed(10_000: Nat - fee_distribution_percentages.toBurn: Nat) }
+            case ( ? #Fixed(_fee) ) { ? #Fixed(_fee: Nat - feeToBurnPerTransaction: Nat)};
+            case ( _ ) {  ? #Fixed(10_000: Nat - feeToBurnPerTransaction: Nat) }
         };
     };
 

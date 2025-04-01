@@ -25,3 +25,11 @@ dist/
 .env
 
 .mops
+
+# mainnet deploy ids
+
+canister_ids.json
+
+# Deploy private info
+
+deploy_token_private.sh
